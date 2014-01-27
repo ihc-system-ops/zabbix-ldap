@@ -1,0 +1,61 @@
+--- CUser.php_back	2012-12-08 14:09:20.000000000 +0300
++++ CUser.php	2014-01-27 18:21:17.284385732 +0300
+@@ -909,10 +909,57 @@
+ 			' WHERE u.alias='.zbx_dbstr($name).
+ 				' AND '.DBin_node('u.userid', $ZBX_LOCALNODEID)
+ 		));
++
++
+ 		if (!$userInfo) {
++		if ($this->ldapLogin($user)) {
++
++		$user2 = array('name'          => "$name",
++				 'surname'	 => "$name",
++                                 'alias'         => "$name",
++                                 'passwd'        => "", // This value isn't needed since we're using LDAP but can't be empty.
++                                 'url'           => '',
++                                 'autologin'     => '0',
++                                 'autologout'    => '0',
++                                 'lang'          => "ru_RU",
++                                 'theme'         => "default",
++                                 'refresh'       => "300",
++                                 'rows_per_page' => "250",
++                                 'type'          => "1",
++                                 'user_medias'   => array( // This is your media types array. You need one array per media type
++                                                          array (  'mediatypeid' => "1", // Email
++                                                                   'sendto'      => $name,
++                                                                   'period'      => "1-7,00:00-24:00;",
++                                                                   'active'      => "0", // 0 = enabled. 1 = disabled
++                                                                   'severity'    => "63", // All severity types
++                                                                 ),
++                                                           array ( 'mediatypeid' => "2", // Jabber
++                                                                   'sendto'      => $name,
++                                                                   'period'      => "1-7,00:00-24:00;",
++                                                                   'active'      => "0", // 0 = enabled. 1 = disabled
++                                                                   'severity'    => "48", // Only High and Disaster Severity types
++                                                                 )
++                                                         ),
++                                 'usrgrps'       => "15" // Your default group ID (usrgrpid) from the users_groups table in the database
++                                                                // These can be seperated by commas if you want the user to be part of multiple groups
++                                );
++
++	       self::$userData['type'] = 3;
++
++	       DBstart();
++	       DBend($this->create($user2));
++
++	}
++	}
++                $userInfo = DBfetch(DBselect(
++                        'SELECT u.userid,u.attempt_failed,u.attempt_clock,u.attempt_ip'.
++                        ' FROM users u'.
++                        ' WHERE u.alias='.zbx_dbstr($name).
++                                ' AND '.DBin_node('u.userid', $ZBX_LOCALNODEID)
++                ));
++                if (!$userInfo) {
+ 			self::exception(ZBX_API_ERROR_PARAMETERS, _('Login name or password is incorrect.'));
+ 		}
+-
+ 		// check if user is blocked
+ 		if ($userInfo['attempt_failed'] >= ZBX_LOGIN_ATTEMPTS) {
+ 			if ((time() - $userInfo['attempt_clock']) < ZBX_LOGIN_BLOCK) {
