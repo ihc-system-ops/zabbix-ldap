@@ -1,0 +1,53 @@
+--- /usr/share/zabbix_with_patch/include/classes/api/services/CUser.php 2016-07-22 18:06:00.000000000 +0300
++++ /usr/share/zabbix/include/classes/api/services/CUser.php    2016-09-28 13:06:22.419974934 +0300
+@@ -1059,6 +1059,50 @@
+                        ' FROM users u'.
+                        ' WHERE u.alias='.zbx_dbstr($name)
+                ));
++               // No user found, try alternative authentication mechanisms.
++               if (!$userInfo) {
++                       $config = select_config();
++                       // Try to authenticate via the authentication type. Create an account if neccessary.
++                       if ($config['authentication_type'] == ZBX_AUTH_LDAP) {
++                               if ($this->ldapLogin($user)) {
++                                       $ldapUser                       = array();
++                                       $ldapUser['alias']              = "$name";
++                                       $ldapUser['name']               = "$name";
++                                       $ldapUser['surname']            = "$name";
++                                       $ldapUser['passwd']             = '';
++                                       $ldapUser['url']                = '';
++                                       $ldapUser['autologin']          = '0';
++                                       $ldapUser['autologout']         = '0';
++                                       $ldapUser['lang']               = 'ru_RU';
++                                       $ldapUser['theme']              = 'default';
++                                       $ldapUser['refresh']            = '30';
++                                       $ldapUser['rows_per_page']      = '250';
++                                       $ldapUser['type']               = '1';
++                                       $ldapUser['user_medias']        = array( // This is your media types array. You need one array per media type
++                                                                               array ( 'mediatypeid' => "1", // Email
++                                                                                       'sendto'      => $name,
++                                                                                       'period'      => "1-7,00:00-24:00;",
++                                                                                       'active'      => "0", // 0 = enabled. 1 = disabled
++                                                                                       'severity'    => "63", // All severity types
++                                                                               ),
++                                                                       );
++
++                                       $ldapUser['usrgrps']    = '15';
++
++                                       self::$userData['type'] = '3';
++
++                                       // Create the user
++                                       $this->create($ldapUser);
++
++                                       $userInfo = DBfetch(DBselect(
++                                               'SELECT u.userid,u.attempt_failed,u.attempt_clock,u.attempt_ip'.
++                                               ' FROM users u'.
++                                               ' WHERE u.alias='.zbx_dbstr($name)
++                                       ));
++                               }
++                       }
++
++               }
+                if (!$userInfo) {
+                        self::exception(ZBX_API_ERROR_PARAMETERS, _('Login name or password is incorrect.'));
+                }
